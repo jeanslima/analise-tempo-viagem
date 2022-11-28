@@ -1,16 +1,16 @@
 <template>
     <div id="app">
-        <GruposClientes />
+        <TempoViagem />
     </div>
 </template>
 
 <script>
-import GruposClientes from '@/components/gruposClientes.vue';
+import TempoViagem from '@/components/tempoViagem.vue';
 
 export default {
     name: 'App',
     components: {
-        GruposClientes,
+        TempoViagem,
     },
     data() {
         return {};
