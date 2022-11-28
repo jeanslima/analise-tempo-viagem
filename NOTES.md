@@ -1,0 +1,10 @@
+Os campos da regra de sm são:
+Pagador (array de cnpj)
+Remetente (string cnpj)
+Destinatário (string cnpj)
+Origem (string cidade/uf/regiao/pais)
+Destino (string cidade/uf/regiao/pais)
+Produto (string)
+Tipo viagem (select: imp., exp.,nac.)
+Seguradora: (select)
+Tipo SM: (select: Marvel risk, baixo risco, alto risco, espelhada)
