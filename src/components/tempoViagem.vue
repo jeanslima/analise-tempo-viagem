@@ -53,7 +53,24 @@
                 </b-col>
             </b-row>
             <b-row>
-                <b-col> </b-col>
+                <b-col>
+                    <ag-grid-vue
+                        style="width: auto; height: 75vh"
+                        class="ag-theme-alpine"
+                        :columnDefs="columnDefs"
+                        :defaultColDef="defaultColDef"
+                        :rowData="rowData"
+                        :animateRows="true"
+                        :cacheQuickFilter="true"
+                        @grid-ready="onGridReady"
+                        :rowSelection="rowSelection"
+                        @selection-changed="onSelectionChanged"
+                        :getContextMenuItems="getContextMenuItems"
+                        :masterDetail="true"
+                        :detailCellRendererParams="detailCellRendererParams"
+                    >
+                    </ag-grid-vue>
+                </b-col>
             </b-row>
         </b-card>
     </div>
@@ -63,14 +80,16 @@
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import 'ag-grid-enterprise';
-// import { AgGridVue } from 'ag-grid-vue';
+import { AgGridVue } from 'ag-grid-vue';
 import axios from 'axios';
 
 export default {
     name: 'TempoViagem',
-    components: {},
+    components: { AgGridVue },
     computed: {},
-    created() {},
+    created() {
+        this.rowSelection = 'single';
+    },
     watch: {
         resultInfoBusca() {
             console.log('watch', this.resultInfoBusca);
@@ -88,9 +107,67 @@ export default {
 
             codViagem: '',
             resultBusca: '',
+
+            // TAGS RELACIONADOS AO AGGRID
+            arrayGrupoSelecionado: [],
+            detailCellRendererParams: null,
+            columnDefs: null,
+            rowData: [],
+            gridApi: null,
+            searchInput: '',
+            rowSelection: null,
+            defaultColDef: {
+                initialWidth: 200,
+                sortable: true,
+                resizable: true,
+                menuTabs: ['filterMenuTab'],
+                filter: true,
+                flex: 1,
+                // floatingFilter: true,
+            },
         };
     },
     methods: {
+        // FUNÇÕES RELACIONADAS AO AGGRID
+        onSelectionChanged() {
+            const selectedRows = this.gridApi.getSelectedRows();
+            this.arrayGrupoSelecionado = selectedRows;
+            console.log(this.arrayGrupoSelecionado);
+        },
+        onGridReady(params) {
+            this.gridApi = params.api;
+            this.gridColumnApi = params.columnApi;
+        },
+        onFilterTextBoxChanged() {
+            this.gridApi.setQuickFilter(this.searchInput);
+        },
+        onPrintQuickFilterTexts() {
+            this.gridApi.forEachNode(function (rowNode, index) {
+                console.log('Row ' + index + ' quick filter text is ' + rowNode.quickFilterAggregateText);
+            });
+        },
+        getContextMenuItems(params) {
+            this.gridApi.deselectAll();
+            params.node.setSelected(true);
+
+            var result = [
+                {
+                    name: 'Editar',
+                    action: () => {
+                        this.flagForm = 'edit';
+                        this.editarRegistro(this.arrayGrupoSelecionado[0]);
+                    },
+                },
+                {
+                    name: 'Excluir',
+                    action: () => {
+                        this.excluirRegistro(params.node.data.objectId);
+                    },
+                },
+            ];
+            return result;
+        },
+        //
         addGrupo() {
             this.flagForm = 'add';
             this.modalNovoGrupo = true;
@@ -151,18 +228,42 @@ export default {
                     break;
                 }
             }
+            if (dataSaidaCliente > dataChegadaAduana) {
+                this.notificacao(
+                    'Eventos fora de Ordem!',
+                    "O evento 'Chegada na Aduana' foi baixado antes do 'Saida do Cliente'"
+                );
+                return false;
+            }
 
-            var diferencaSegundos = chegadaAduanaSegundos - saidaClienteSegundos;
             console.log('dataSaidaCliente', dataSaidaCliente);
             console.log('dataChegadaAduana', dataChegadaAduana);
+            var diferencaSegundos = chegadaAduanaSegundos - saidaClienteSegundos;
 
-            console.log(diferencaSegundos);
+            var diferencaMinutos = Math.round(diferencaSegundos / 60000);
+            console.log(diferencaMinutos, 'minutos');
+
+            var diferencaHoras = Math.round(diferencaMinutos / 60);
+            console.log(diferencaHoras, 'horas');
+
+            var diferencaDias = Math.round(diferencaHoras / 24);
+            console.log(diferencaDias, 'dias');
+
+            if (diferencaMinutos > 60) {
+                if (diferencaHoras > 24) {
+                    this.tempoAteAduana = `${diferencaDias} dias`;
+                } else {
+                    this.tempoAteAduana = `${diferencaHoras} horas`;
+                }
+            } else {
+                this.tempoAteAduana = `${diferencaMinutos} minutos`;
+            }
 
             // console.log(item);
 
-            // this.cidade_origem = response.data.coletas[0].cidade_origem;
-            // this.nomeAduana = response.data.talhao;
-            // this.numeroRota = response.data.rota;
+            this.cidade_origem = response.data.coletas[0].cidade_origem;
+            this.nomeAduana = response.data.talhao;
+            this.numeroRota = response.data.rota;
             console.log(response.data);
             this.mostrar = true;
         },
@@ -170,24 +271,12 @@ export default {
     beforeMount() {
         // AGGRID TODOS OS GRUPOS
         this.columnDefs = [
-            { field: 'nome_grupo', headerName: 'Nome do Grupo', width: 300 },
-            { field: 'descricao', headerName: 'Descrição', width: 500 },
-            {
-                field: 'clientes',
-                headerName: 'Clientes',
-                valueFormatter: (params) => {
-                    const plural = params.value.length > 1 ? ' CLIENTES' : ' CLIENTE';
-                    return params.value.length + plural;
-                },
-                width: 700,
-                cellRenderer: 'agGroupCellRenderer',
-            },
-        ];
-        // AGGRID TODOS OS CLIENTES
-        this.columnDefsClientes = [
-            { field: 'nome_cliente', headerName: 'Nome' },
-            { field: 'cnpj', headerName: 'CNPJ' },
-            { field: 'local', headerName: 'Local' },
+            { field: 'rota', headerName: 'Rota', width: 100 },
+            { field: 'cavalo_fim', headerName: 'Frota', width: 100 },
+            { field: 'carreta_fim', headerName: 'Carreta', width: 100 },
+            { field: 'cidade_origem', headerName: 'Origem', width: 100 },
+            { field: 'cidade_destino', headerName: 'Destino', width: 100 },
+            { field: 'talhao', headerName: 'Aduana', width: 700 },
         ];
     },
 };
